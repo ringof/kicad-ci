@@ -26,8 +26,14 @@ FROM ${BASE}
 # this is a fast wheel install (no compile). Version-pinned for reproducibility.
 ARG PYMUPDF_VERSION=1.24.14
 RUN set -eux; \
+    # This base ships no usable pip for the PATH python and no `curl`, and
+    # `ensurepip` is absent on that interpreter. Bootstrap pip into the PATH
+    # python via get-pip.py, apt-installing curl only if we actually need it.
     python3 -m ensurepip --upgrade 2>/dev/null || \
-      { curl -fsSL https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py; \
+      { apt-get update; \
+        apt-get install -y --no-install-recommends curl ca-certificates; \
+        rm -rf /var/lib/apt/lists/*; \
+        curl -fsSL https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py; \
         python3 /tmp/get-pip.py; rm -f /tmp/get-pip.py; }; \
     python3 -m pip install --no-cache-dir --break-system-packages \
         "PyMuPDF==${PYMUPDF_VERSION}"
