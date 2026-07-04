@@ -103,9 +103,16 @@ gates before publishing** — nothing ships unless all pass:
 
 The base is pinned by `@sha256:` digest — there is no `:latest` in `FROM`.
 
-The workflow triggers only on changes to the `Dockerfile` or the workflow itself
-(and on manual `workflow_dispatch`) — consuming projects just pull the finished
-image.
+Branch model:
+
+- **`dev`** is the integration branch. Merging a `Dockerfile`/workflow change to
+  `dev` **builds and publishes** the tags above.
+- **`main`** is the release branch. Every PR into `main` (i.e. promoting `dev →
+  main`) runs the same build + acceptance gates **without publishing**, so it can
+  serve as a required status check gating the release.
+- Manual `workflow_dispatch` builds and publishes from any ref.
+
+Consuming projects just pull the finished image — they never build it.
 
 ## Package visibility
 
