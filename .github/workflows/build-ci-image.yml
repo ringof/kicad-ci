@@ -1,0 +1,84 @@
+name: build-ci-image
+
+# Build only when the image definition changes, or on manual dispatch.
+# NOT on every push — consuming projects just PULL the finished image.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Dockerfile'
+      - '.github/workflows/build-ci-image.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write   # lets the built-in GITHUB_TOKEN push to GHCR (no PAT needed)
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/kicad-ci
+          tags: |
+            type=raw,value=10
+            type=raw,value=10-{{date 'YYYYMMDD'}}
+            type=sha
+
+      # Build once and load into the local docker so the acceptance gates run
+      # against the exact image before anything is published. The second build
+      # below reuses this build's cache, so the push is near-instant.
+      - name: Build image (load for testing)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: kicad-ci:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Acceptance criteria 2 & 3: fitz importable by the PATH python, and a
+      # real vector overlay (show_pdf_page nests the source as a Form XObject).
+      - name: Smoke test — vector PDF overlay (PyMuPDF/fitz)
+        run: |
+          docker run --rm kicad-ci:test bash -c '
+            set -e
+            P="$(command -v python3)"; echo "PATH python: $(readlink -f "$P")"
+            "$P" - <<PY
+          import fitz
+          base = fitz.open(); bp = base.new_page(width=595, height=842)
+          src  = fitz.open(); sp = src.new_page(width=200, height=200)
+          sp.draw_rect(fitz.Rect(10, 10, 190, 190))
+          bp.show_pdf_page(fitz.Rect(50, 50, 250, 250), src, 0)  # vector nest, not raster
+          base.save("/tmp/out.pdf")
+          print("overlay OK, pages:", base.page_count)
+          PY'
+
+      # Acceptance criterion 4: base tools still intact.
+      - name: Smoke test — base tools intact (kicad-cli, kibot)
+        run: |
+          docker run --rm kicad-ci:test kicad-cli version
+          docker run --rm kicad-ci:test kibot --version
+
+      # Only publish after the gates pass. Cached from the build above.
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
