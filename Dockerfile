@@ -34,7 +34,7 @@ RUN set -eux; \
         apt-get install -y --no-install-recommends curl ca-certificates; \
         rm -rf /var/lib/apt/lists/*; \
         curl -fsSL https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py; \
-        python3 /tmp/get-pip.py; rm -f /tmp/get-pip.py; }; \
+        python3 /tmp/get-pip.py --break-system-packages; rm -f /tmp/get-pip.py; }; \
     python3 -m pip install --no-cache-dir --break-system-packages \
         "PyMuPDF==${PYMUPDF_VERSION}"
 
