@@ -1,11 +1,14 @@
 name: build-ci-image
 
-# Publish on merges to dev (the integration branch); validate — build + smoke
-# test, no push — on PRs into main so the release promotion (dev -> main) is
-# gated. Consuming projects just PULL the finished image.
+# Two publish channels + one gate:
+#   push to main -> RELEASE  : :latest, :10, :10-YYYYMMDD, :sha-<commit>
+#   push to dev  -> PREVIEW  : :10-dev (moving), :sha-<commit>
+#   PR into main -> validate : build + smoke test, no push (gates dev -> main)
+# (which tags publish is branch-conditional in the metadata step below.)
+# Consuming projects just PULL a pinned tag.
 on:
   push:
-    branches: [dev]
+    branches: [main, dev]
     paths:
       - 'Dockerfile'
       - '.github/workflows/build-ci-image.yml'
@@ -38,9 +41,15 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository_owner }}/kicad-ci
+          # Release tags (:latest, :10, :10-YYYYMMDD) only on main; the moving
+          # preview tag (:10-dev) only on dev; the immutable :sha-<commit> tag
+          # always. On a PR none of the branch conditions match, so nothing but
+          # :sha is computed — and the push step is skipped anyway.
           tags: |
-            type=raw,value=10
-            type=raw,value=10-{{date 'YYYYMMDD'}}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=10,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=10-{{date 'YYYYMMDD'}},enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=10-dev,enable=${{ github.ref == 'refs/heads/dev' }}
             type=sha
 
       # Build once and load into the local docker so the acceptance gates run

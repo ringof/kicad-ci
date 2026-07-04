@@ -67,14 +67,20 @@ Because the package is **public**, it pulls with **no auth** from any repo.
 
 ## Tags
 
-| Tag | Mutability | Use |
-| --- | --- | --- |
-| `:10` | moving — republished on every build | convenience only |
-| `:10-YYYYMMDD` | immutable | **pin your CI to this** |
-| `:sha-<commit>` | immutable | pin to an exact source commit |
+Releases come from **`main`**; previews come from **`dev`** (see
+[Branch model](#how-its-built--verified)).
 
-**Consuming projects should pin to `:10-YYYYMMDD` or a `@sha256:` digest**, never
-`:10`, so their CI never shifts unexpectedly.
+| Tag | Source | Mutability | Use |
+| --- | --- | --- | --- |
+| `:latest` | `main` | moving | newest release overall — convenience only |
+| `:10` | `main` | moving | newest v10 release — convenience only |
+| `:10-YYYYMMDD` | `main` | immutable | **pin your CI to this** |
+| `:10-dev` | `dev` | moving | latest integration build — **testing only, not for prod** |
+| `:sha-<commit>` | either | immutable | pin to an exact source commit |
+
+**Consuming projects should pin to `:10-YYYYMMDD` or a `@sha256:` digest** — never
+a moving tag (`:latest`, `:10`, `:10-dev`) — so their CI never shifts
+unexpectedly.
 
 ## Bumping the base (e.g. new KiCad release)
 
@@ -87,9 +93,11 @@ One place to change; each project adopts on its own schedule.
    ```
 2. Update the `BASE` `@sha256:` digest in [`Dockerfile`](./Dockerfile).
    (Optionally bump `PYMUPDF_VERSION` too.)
-3. Merge to `dev`. The [`build-ci-image`](./.github/workflows/build-ci-image.yml)
-   workflow rebuilds, runs the smoke tests, and republishes the tags above.
-4. In each consuming project, bump the pinned `:10-YYYYMMDD` tag when ready.
+3. Open a PR to `dev` and merge it. `dev` rebuilds, runs the smoke tests, and
+   republishes the **preview** tags (`:10-dev`, `:sha`) — test that image.
+4. When it's good, promote `dev → main` (PR gated by the same build). Merging to
+   `main` publishes the **release** tags (`:latest`, `:10`, `:10-YYYYMMDD`).
+5. In each consuming project, bump the pinned `:10-YYYYMMDD` tag when ready.
 
 ## How it's built & verified
 
@@ -106,11 +114,14 @@ The base is pinned by `@sha256:` digest — there is no `:latest` in `FROM`.
 Branch model:
 
 - **`dev`** is the integration branch. Merging a `Dockerfile`/workflow change to
-  `dev` **builds and publishes** the tags above.
-- **`main`** is the release branch. Every PR into `main` (i.e. promoting `dev →
-  main`) runs the same build + acceptance gates **without publishing**, so it can
-  serve as a required status check gating the release.
-- Manual `workflow_dispatch` builds and publishes from any ref.
+  `dev` builds, runs the gates, and publishes the **preview** tags (`:10-dev`,
+  `:sha`).
+- **`main`** is the release branch. Every PR into `main` (promoting `dev → main`)
+  runs the same build + gates **without publishing**, so it can serve as a
+  required status check. Merging to `main` then publishes the **release** tags
+  (`:latest`, `:10`, `:10-YYYYMMDD`, `:sha`).
+- Manual `workflow_dispatch` builds from any ref and publishes whatever tags that
+  ref maps to (release tags from `main`, preview from `dev`, `:sha` elsewhere).
 
 Consuming projects just pull the finished image — they never build it.
 
