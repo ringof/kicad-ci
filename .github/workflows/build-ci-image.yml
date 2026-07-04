@@ -4,7 +4,7 @@ name: build-ci-image
 # NOT on every push — consuming projects just PULL the finished image.
 on:
   push:
-    branches: [main]
+    branches: [dev]
     paths:
       - 'Dockerfile'
       - '.github/workflows/build-ci-image.yml'

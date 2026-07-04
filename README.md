@@ -87,7 +87,7 @@ One place to change; each project adopts on its own schedule.
    ```
 2. Update the `BASE` `@sha256:` digest in [`Dockerfile`](./Dockerfile).
    (Optionally bump `PYMUPDF_VERSION` too.)
-3. Merge to `main`. The [`build-ci-image`](./.github/workflows/build-ci-image.yml)
+3. Merge to `dev`. The [`build-ci-image`](./.github/workflows/build-ci-image.yml)
    workflow rebuilds, runs the smoke tests, and republishes the tags above.
 4. In each consuming project, bump the pinned `:10-YYYYMMDD` tag when ready.
 
